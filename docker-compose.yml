@@ -1,0 +1,61 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      - MONGODB_URL=mongodb://mongo:27017
+      - MONGODB_DB_NAME=cybersentric
+      - POSTGRES_URL=postgresql+asyncpg://postgres:postgres@postgres:5432/cybersentric
+      - CORS_ORIGINS=http://localhost:5173,http://localhost:3000
+      - DEBUG=true
+    depends_on:
+      - mongo
+      - postgres
+    networks:
+      - cybersentric
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "5173:5173"
+    depends_on:
+      - backend
+    networks:
+      - cybersentric
+
+  mongo:
+    image: mongo:7
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+    networks:
+      - cybersentric
+
+  postgres:
+    image: postgres:16-alpine
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=cybersentric
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    networks:
+      - cybersentric
+
+volumes:
+  mongo_data:
+  pg_data:
+
+networks:
+  cybersentric:
+    driver: bridge
