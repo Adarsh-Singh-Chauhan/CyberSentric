@@ -22,7 +22,7 @@ class MongoDB:
     @classmethod
     async def connect(cls):
         """Initialize MongoDB connection."""
-        cls.client = AsyncIOMotorClient(settings.MONGODB_URL)
+        cls.client = AsyncIOMotorClient(settings.MONGODB_URL, serverSelectionTimeoutMS=2000)
         cls.db = cls.client[settings.MONGODB_DB_NAME]
 
         # Create indexes for performance

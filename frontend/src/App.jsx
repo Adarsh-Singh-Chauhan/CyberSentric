@@ -9,6 +9,8 @@ import ActionHistory from './components/ActionHistory';
 import InputAnalyzer from './components/InputAnalyzer';
 import RedTeamPanel from './components/RedTeamPanel';
 import LoginScreen from './components/LoginScreen';
+import CyberGlobe from './components/CyberGlobe';
+import CyberChatbot from './components/CyberChatbot';
 import { useWebSocket } from './hooks/useWebSocket';
 import { api } from './services/api';
 import { Shield, Activity, AlertTriangle, Zap } from 'lucide-react';
@@ -107,6 +109,11 @@ export default function App() {
                     </div>
                   </div>
                 ))}
+              </div>
+
+              {/* 3D Globe - Live IP Tracking */}
+              <div className="w-full h-[400px] mb-6">
+                <CyberGlobe />
               </div>
 
               {/* Analyzer + Risk */}
@@ -211,6 +218,9 @@ export default function App() {
           )}
         </div>
       </main>
+      
+      {/* Floating AI Chatbot */}
+      <CyberChatbot />
     </div>
   );
 }

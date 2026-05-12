@@ -1,0 +1,56 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cybersentric-backend
+  labels:
+    app: cybersentric
+    tier: backend
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: cybersentric
+      tier: backend
+  template:
+    metadata:
+      labels:
+        app: cybersentric
+        tier: backend
+    spec:
+      containers:
+      - name: backend
+        image: cybersentric/backend:latest
+        ports:
+        - containerPort: 8000
+        env:
+        - name: MONGODB_URL
+          valueFrom:
+            secretKeyRef:
+              name: db-secrets
+              key: MONGODB_URL
+        - name: POSTGRES_URL
+          valueFrom:
+            secretKeyRef:
+              name: db-secrets
+              key: POSTGRES_URL
+        resources:
+          limits:
+            cpu: "2"
+            memory: "4Gi"
+          requests:
+            cpu: "500m"
+            memory: "1Gi"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: cybersentric-backend-svc
+spec:
+  selector:
+    app: cybersentric
+    tier: backend
+  ports:
+  - protocol: TCP
+    port: 8000
+    targetPort: 8000
+  type: ClusterIP

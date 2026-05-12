@@ -1,0 +1,45 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cybersentric-frontend
+  labels:
+    app: cybersentric
+    tier: frontend
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: cybersentric
+      tier: frontend
+  template:
+    metadata:
+      labels:
+        app: cybersentric
+        tier: frontend
+    spec:
+      containers:
+      - name: frontend
+        image: cybersentric/frontend:latest
+        ports:
+        - containerPort: 80
+        resources:
+          limits:
+            cpu: "1"
+            memory: "1Gi"
+          requests:
+            cpu: "200m"
+            memory: "512Mi"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: cybersentric-frontend-svc
+spec:
+  selector:
+    app: cybersentric
+    tier: frontend
+  ports:
+  - protocol: TCP
+    port: 80
+    targetPort: 80
+  type: LoadBalancer
