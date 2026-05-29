@@ -6,7 +6,7 @@ export default function LoginScreen({ onLogin }) {
   const [isLogin, setIsLogin] = useState(true);
   
   // Form fields
-  const [email, setEmail] = useState('');
+  const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
   const [organization, setOrganization] = useState('');
@@ -17,16 +17,16 @@ export default function LoginScreen({ onLogin }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!email || !password) return setError('Please enter a valid email and password.');
+    if (!identifier || !password) return setError('Please enter a valid credential and password.');
     if (!isLogin && (!fullName || !organization)) return setError('Please fill out all signup fields.');
     
     setLoading(true);
     setError('');
     try {
-      // Using email as username for the backend
+      // Using identifier as username for the backend
       const res = isLogin 
-        ? await api.login(email, password) 
-        : await api.register(email, password);
+        ? await api.login(identifier, password) 
+        : await api.register(identifier, password);
       
       localStorage.setItem('cs_token', res.access_token);
       onLogin({ username: res.username, role: res.role });
@@ -37,16 +37,28 @@ export default function LoginScreen({ onLogin }) {
     }
   };
 
-  const handleGoogleLogin = () => {
+  const handleGoogleLogin = async () => {
     setGoogleLoading(true);
     setError('');
-    // Simulate Google OAuth flow
-    setTimeout(() => {
-      // Mock successful Google Login as a standard user
-      const mockToken = "google_mock_token_123";
-      localStorage.setItem('cs_token', mockToken);
+    try {
+      // Create a seamless Google OAuth mock that fetches a real JWT token from the backend
+      const googleUser = 'google_oauth_user';
+      const googlePass = 'google_oauth_secret_pass';
+      
+      let res;
+      try {
+        res = await api.login(googleUser, googlePass);
+      } catch (e) {
+        res = await api.register(googleUser, googlePass);
+      }
+      
+      localStorage.setItem('cs_token', res.access_token);
       onLogin({ username: 'Google User', role: 'user' });
-    }, 2000);
+    } catch (err) {
+      setError('Google Sign-In failed');
+    } finally {
+      setGoogleLoading(false);
+    }
   };
 
   return (
@@ -128,12 +140,12 @@ export default function LoginScreen({ onLogin }) {
               )}
 
               <div>
-                <label className="block text-xs font-semibold text-gray-600 mb-1">Email Address</label>
+                <label className="block text-xs font-semibold text-gray-600 mb-1">Email, Number or Username</label>
                 <input 
-                  type="email" 
-                  value={email} 
-                  onChange={e => setEmail(e.target.value)}
-                  placeholder="name@company.com" 
+                  type="text" 
+                  value={identifier} 
+                  onChange={e => setIdentifier(e.target.value)}
+                  placeholder="name@company.com / 98765... / username" 
                   className="w-full border border-gray-200 bg-gray-50/50 rounded-lg px-4 py-3 text-[15px] text-slate-800 placeholder-gray-400 focus:bg-white focus:outline-none focus:border-[#FFA116] focus:ring-2 focus:ring-[#FFA116]/20 transition-all" 
                 />
               </div>
@@ -196,12 +208,7 @@ export default function LoginScreen({ onLogin }) {
                 </button>
               </div>
             </div>
-            
-            <div className="mt-8 text-center bg-gray-50 rounded-lg p-3 border border-gray-100">
-              <p className="text-xs text-gray-500">
-                <span className="font-semibold text-gray-700">Demo Access:</span> Use <code className="bg-gray-200 px-1 py-0.5 rounded text-slate-800">admin</code> / <code className="bg-gray-200 px-1 py-0.5 rounded text-slate-800">admin123</code>
-              </p>
-            </div>
+
           </div>
         </div>
       </div>
