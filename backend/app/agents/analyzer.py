@@ -27,6 +27,7 @@ from app.agents.base_agent import AgentStatus, BaseAgent, Severity, ThreatResult
 from app.ml.feature_extractor import FeatureExtractor
 from app.ml.anomaly_detector import AnomalyDetector
 from app.ml.threat_classifier import ThreatClassifier
+from app.ml.temporal_detector import TemporalAnomalyDetector
 
 
 class AnalyzerAgent(BaseAgent):
@@ -46,6 +47,7 @@ class AnalyzerAgent(BaseAgent):
         self.feature_extractor = FeatureExtractor(window_minutes=10)
         self.anomaly_detector = AnomalyDetector()
         self.threat_classifier = ThreatClassifier()
+        self.temporal_detector = TemporalAnomalyDetector()
 
         # ── Per-user/IP activity tracking (for behavioral flags) ─
         self._user_activity: dict[str, list[dict]] = defaultdict(list)
@@ -105,6 +107,9 @@ class AnalyzerAgent(BaseAgent):
         # ── Step 2: ML Inference (Isolation Forest) ─────────────
         ml_result = self.anomaly_detector.predict(features)
 
+        # ── Step 2.5: Temporal Inference (LSTM) ─────────────────
+        temporal_result = self.temporal_detector.predict_sequence(ip, features)
+
         # ── Step 3: Behavioral Flags ────────────────────────────
         acts = self._user_activity.get(uid, [])
         behavioral_flags = {
@@ -116,6 +121,8 @@ class AnalyzerAgent(BaseAgent):
             "unique_endpoints": len(set(a["endpoint"] for a in acts)),
             "ip": ip,
             "user_id": uid,
+            "temporal_anomaly": temporal_result.get("temporal_anomaly", False),
+            "temporal_score": temporal_result.get("score", 0.0),
         }
 
         # ── Step 4: Defender results (if available) ─────────────
@@ -210,6 +217,7 @@ class AnalyzerAgent(BaseAgent):
         """Extended status including ML model info."""
         base = super().get_status()
         base["ml_model"] = self.anomaly_detector.get_model_info()
+        base["temporal_model"] = self.temporal_detector.get_status()
         base["total_anomalies"] = self.total_anomalies
         base["total_clean"] = self.total_clean
         return base

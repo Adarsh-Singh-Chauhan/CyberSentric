@@ -58,6 +58,10 @@ frontend_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__fi
 if os.path.isdir(frontend_dir):
     app.mount("/assets", StaticFiles(directory=os.path.join(frontend_dir, "assets")), name="assets")
 
+    @app.get("/")
+    async def serve_root():
+        return FileResponse(os.path.join(frontend_dir, "index.html"))
+
     @app.get("/{full_path:path}")
     async def serve_frontend(full_path: str):
         file_path = os.path.join(frontend_dir, full_path)

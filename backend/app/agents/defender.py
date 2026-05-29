@@ -4,6 +4,8 @@ Detects prompt injection, malicious inputs, and prevents LLM exploitation.
 Uses pattern matching, heuristic scoring, and input sanitization.
 """
 import re
+import base64
+import binascii
 from typing import Optional
 
 from app.agents.base_agent import (
@@ -105,10 +107,20 @@ class DefenderAgent(BaseAgent):
         source_ip = data.get("source_ip")
         user_id = data.get("user_id")
 
-        # Run all detection checks
-        injection_score = self._check_injection(user_input)
-        malicious_score = self._check_malicious(user_input)
-        suspicious_score = self._check_suspicious(user_input)
+        # Try to decode base64 to catch obfuscated/jailbreak payloads
+        decoded_input = user_input
+        try:
+            # Match base64 strings (roughly) and try decoding
+            if len(user_input) > 10 and re.match(r'^[A-Za-z0-9+/]+={0,2}$', user_input.strip()):
+                decoded_bytes = base64.b64decode(user_input.strip(), validate=True)
+                decoded_input = decoded_bytes.decode('utf-8', errors='ignore')
+        except (binascii.Error, ValueError):
+            pass
+
+        # Run all detection checks against both raw and decoded inputs
+        injection_score = max(self._check_injection(user_input), self._check_injection(decoded_input))
+        malicious_score = max(self._check_malicious(user_input), self._check_malicious(decoded_input))
+        suspicious_score = max(self._check_suspicious(user_input), self._check_suspicious(decoded_input))
         entropy_score = self._check_entropy(user_input)
 
         # Aggregate threat score (weighted)
@@ -289,11 +301,17 @@ class DefenderAgent(BaseAgent):
         return 0.0
 
     def _sanitize_input(self, text: str) -> str:
-        """Sanitize potentially dangerous input."""
-        # Remove script tags
-        sanitized = re.sub(r"<script[^>]*>.*?</script>", "[REMOVED]", text, flags=re.IGNORECASE | re.DOTALL)
-        # Remove HTML tags
-        sanitized = re.sub(r"<[^>]+>", "", sanitized)
+        """Sanitize potentially dangerous input recursively."""
+        sanitized = text
+        previous = ""
+        # Recursive replacement for nested HTML/script tags
+        while sanitized != previous:
+            previous = sanitized
+            # Remove script tags
+            sanitized = re.sub(r"<script[^>]*>.*?</script>", "[REMOVED]", sanitized, flags=re.IGNORECASE | re.DOTALL)
+            # Remove HTML tags
+            sanitized = re.sub(r"<[^>]+>", "", sanitized)
+
         # Remove common injection markers
         sanitized = re.sub(r"(javascript|on\w+)\s*:", "[BLOCKED]:", sanitized, flags=re.IGNORECASE)
         # Remove SQL injection patterns

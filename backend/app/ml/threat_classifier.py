@@ -33,6 +33,7 @@ class ThreatClassifier:
         "brute_force": "authentication_attack",
         "credential_stuffing": "authentication_attack",
         "ml_anomaly": "behavioral_anomaly",
+        "temporal_anomaly": "behavioral_anomaly",
         "rate_abuse": "denial_of_service",
         "endpoint_scanning": "reconnaissance",
         "prompt_injection": "ai_exploitation",
@@ -127,6 +128,17 @@ class ThreatClassifier:
                 "severity": "high",
                 "confidence": min(0.5 + unique_eps * 0.02, 0.95),
                 "detail": f"{unique_eps} unique endpoints accessed — recon scanning",
+            })
+
+        is_temporal_anomaly = behavioral_flags.get("temporal_anomaly", False)
+        temporal_score = behavioral_flags.get("temporal_score", 0.0)
+        
+        if is_temporal_anomaly:
+            threats_found.append({
+                "type": "temporal_anomaly",
+                "severity": "high" if temporal_score < 1.0 else "critical",
+                "confidence": min(0.6 + temporal_score * 0.1, 0.99),
+                "detail": f"Temporal sequence anomaly detected — LSTM error {temporal_score:.3f}",
             })
 
         # ── 3. Defender rule-based threats ──────────────────────

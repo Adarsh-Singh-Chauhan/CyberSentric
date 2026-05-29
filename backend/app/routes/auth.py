@@ -10,6 +10,7 @@ from pydantic import BaseModel
 from jose import JWTError, jwt
 import bcrypt
 from app.config import settings
+from app.database import Database
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 security = HTTPBearer(auto_error=False)
@@ -23,13 +24,7 @@ def verify_password(plain: str, hashed: str) -> bool:
     except ValueError:
         return False
 
-# In-memory user store (replace with PostgreSQL in production)
-USERS_DB: dict[str, dict] = {
-    "admin": {"username": "admin", "password": hash_password("admin123"),
-              "role": "admin", "created": datetime.utcnow().isoformat()},
-    "user": {"username": "user", "password": hash_password("user123"),
-             "role": "user", "created": datetime.utcnow().isoformat()},
-}
+
 
 
 class LoginRequest(BaseModel):
@@ -59,15 +54,26 @@ def create_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
 
 async def get_current_user(creds: Optional[HTTPAuthorizationCredentials] = Depends(security)) -> dict:
     if not creds:
-        return {"username": "anonymous", "role": "user"}
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Not authenticated",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
     try:
         payload = jwt.decode(creds.credentials, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
         username = payload.get("sub")
-        if username and username in USERS_DB:
-            return {"username": username, "role": USERS_DB[username]["role"]}
+        if username:
+            user_record = await Database.get_user(username)
+            if user_record:
+                return {"username": username, "role": user_record["role"]}
     except JWTError:
         pass
-    return {"username": "anonymous", "role": "user"}
+    
+    raise HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Could not validate credentials",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
 
 
 async def require_admin(user: dict = Depends(get_current_user)) -> dict:
@@ -78,7 +84,7 @@ async def require_admin(user: dict = Depends(get_current_user)) -> dict:
 
 @router.post("/login", response_model=TokenResponse)
 async def login(req: LoginRequest):
-    user = USERS_DB.get(req.username)
+    user = await Database.get_user(req.username)
     if not user or not verify_password(req.password, user["password"]):
         raise HTTPException(status_code=401, detail="Invalid credentials")
     token = create_token({"sub": req.username, "role": user["role"]})
@@ -87,15 +93,12 @@ async def login(req: LoginRequest):
 
 @router.post("/register", response_model=TokenResponse)
 async def register(req: RegisterRequest):
-    if req.username in USERS_DB:
+    role = req.role if req.role in ("admin", "user") else "user"
+    success = await Database.create_user(req.username, hash_password(req.password), role)
+    if not success:
         raise HTTPException(status_code=400, detail="Username already exists")
-    USERS_DB[req.username] = {
-        "username": req.username, "password": hash_password(req.password),
-        "role": req.role if req.role in ("admin", "user") else "user",
-        "created": datetime.utcnow().isoformat(),
-    }
-    token = create_token({"sub": req.username, "role": USERS_DB[req.username]["role"]})
-    return TokenResponse(access_token=token, role=USERS_DB[req.username]["role"], username=req.username)
+    token = create_token({"sub": req.username, "role": role})
+    return TokenResponse(access_token=token, role=role, username=req.username)
 
 
 @router.get("/me")

@@ -94,18 +94,18 @@ export default function App() {
               {/* Stats row */}
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 {[
-                  { label: 'Total Scans', value: stats?.total_processed || 0, icon: Shield, color: 'cyan', gradient: 'from-cyan-500/20 to-blue-500/20' },
-                  { label: 'Threats Found', value: stats?.total_threats || 0, icon: AlertTriangle, color: 'red', gradient: 'from-red-500/20 to-orange-500/20' },
-                  { label: 'IPs Blocked', value: stats?.blocked_ips_count || 0, icon: Zap, color: 'orange', gradient: 'from-orange-500/20 to-yellow-500/20' },
-                  { label: 'Detection Rate', value: `${Math.round((stats?.detection_rate || 0) * 100)}%`, icon: Activity, color: 'green', gradient: 'from-green-500/20 to-emerald-500/20' },
+                  { label: 'Total Scans', value: stats?.total_processed || 0, icon: Shield, gradient: 'from-cyan-500/20 to-blue-500/20', valueClass: 'text-cyan-400', iconClass: 'text-cyan-500/30' },
+                  { label: 'Threats Found', value: stats?.total_threats || 0, icon: AlertTriangle, gradient: 'from-red-500/20 to-orange-500/20', valueClass: 'text-red-400', iconClass: 'text-red-500/30' },
+                  { label: 'IPs Blocked', value: stats?.blocked_ips_count || 0, icon: Zap, gradient: 'from-orange-500/20 to-yellow-500/20', valueClass: 'text-orange-400', iconClass: 'text-orange-500/30' },
+                  { label: 'Detection Rate', value: `${Math.round((stats?.detection_rate || 0) * 100)}%`, icon: Activity, gradient: 'from-green-500/20 to-emerald-500/20', valueClass: 'text-emerald-400', iconClass: 'text-green-500/30' },
                 ].map((s, i) => (
                   <div key={i} className={`glass rounded-xl p-4 bg-gradient-to-br ${s.gradient} border border-white/5`}>
                     <div className="flex items-center justify-between">
                       <div>
                         <p className="text-[10px] text-slate-500 uppercase tracking-wider">{s.label}</p>
-                        <p className={`text-2xl font-bold font-mono mt-1 text-${s.color}-400`}>{s.value}</p>
+                        <p className={`text-2xl font-bold font-mono mt-1 ${s.valueClass}`}>{s.value}</p>
                       </div>
-                      <s.icon className={`w-8 h-8 text-${s.color}-500/30`} />
+                      <s.icon className={`w-8 h-8 ${s.iconClass}`} />
                     </div>
                   </div>
                 ))}

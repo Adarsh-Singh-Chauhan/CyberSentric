@@ -1,245 +1,194 @@
 """
 CyberSentric Database Connections
-MongoDB (logs, events) + PostgreSQL (structured data)
+PostgreSQL / SQLite (Persistent Storage)
 """
 import asyncio
-from datetime import datetime
+from datetime import datetime, timedelta
+import json
 from typing import Optional
 
-from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorDatabase
+from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
+from sqlalchemy.orm import declarative_base, sessionmaker
+from sqlalchemy import Column, Integer, String, Float, DateTime, JSON, select, desc, func
+import bcrypt
 
 from app.config import settings
 
+Base = declarative_base()
 
-# ─── MongoDB Connection ───────────────────────────────────────────────────────
+class User(Base):
+    __tablename__ = "users"
+    id = Column(Integer, primary_key=True, index=True)
+    username = Column(String, unique=True, index=True)
+    password = Column(String)
+    role = Column(String, default="user")
+    created = Column(DateTime, default=datetime.utcnow)
 
-class MongoDB:
-    """MongoDB connection manager for event logs and unstructured data."""
+class ThreatLog(Base):
+    __tablename__ = "threat_logs"
+    id = Column(Integer, primary_key=True, index=True)
+    timestamp = Column(DateTime, default=datetime.utcnow, index=True)
+    threat_type = Column(String, index=True)
+    severity = Column(String, index=True)
+    data_json = Column(String) # Store the whole dict for easy retrieval
 
-    client: Optional[AsyncIOMotorClient] = None
-    db: Optional[AsyncIOMotorDatabase] = None
+class AgentEvent(Base):
+    __tablename__ = "agent_events"
+    id = Column(Integer, primary_key=True, index=True)
+    timestamp = Column(DateTime, default=datetime.utcnow, index=True)
+    agent_name = Column(String, index=True)
+    data_json = Column(String)
+
+class ActionHistory(Base):
+    __tablename__ = "action_history"
+    id = Column(Integer, primary_key=True, index=True)
+    timestamp = Column(DateTime, default=datetime.utcnow, index=True)
+    data_json = Column(String)
+
+class SystemMetric(Base):
+    __tablename__ = "system_metrics"
+    id = Column(Integer, primary_key=True, index=True)
+    timestamp = Column(DateTime, default=datetime.utcnow, index=True)
+    data_json = Column(String)
+
+class Database:
+    """Persistent SQLAlchemy database manager."""
+    engine = None
+    async_session = None
 
     @classmethod
     async def connect(cls):
-        """Initialize MongoDB connection."""
-        cls.client = AsyncIOMotorClient(settings.MONGODB_URL, serverSelectionTimeoutMS=2000)
-        cls.db = cls.client[settings.MONGODB_DB_NAME]
-
-        # Create indexes for performance
-        await cls.db.threat_logs.create_index([("timestamp", -1)])
-        await cls.db.threat_logs.create_index([("severity", 1)])
-        await cls.db.agent_events.create_index([("timestamp", -1)])
-        await cls.db.agent_events.create_index([("agent_name", 1)])
-        await cls.db.action_history.create_index([("timestamp", -1)])
-        await cls.db.system_metrics.create_index([("timestamp", -1)])
-
-        print("[DB] MongoDB connected successfully")
+        # We use SQLite for out-of-the-box persistent storage. 
+        # PostgreSQL can be used by changing the URL in settings.
+        db_url = "sqlite+aiosqlite:///cybersentric.db"
+        cls.engine = create_async_engine(db_url, echo=False)
+        cls.async_session = sessionmaker(cls.engine, class_=AsyncSession, expire_on_commit=False)
+        
+        async with cls.engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+            
+        # Initialize default users
+        async with cls.async_session() as session:
+            result = await session.execute(select(User).where(User.username == "admin"))
+            if not result.scalars().first():
+                def hash_pw(pw): return bcrypt.hashpw(pw.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+                session.add(User(username="admin", password=hash_pw("admin123"), role="admin"))
+                session.add(User(username="user", password=hash_pw("user123"), role="user"))
+                await session.commit()
+                
+        print("[DB] Database connected successfully")
 
     @classmethod
     async def disconnect(cls):
-        """Close MongoDB connection."""
-        if cls.client:
-            cls.client.close()
-            print("[DB] MongoDB disconnected")
+        if cls.engine:
+            await cls.engine.dispose()
+            print("[DB] Database disconnected")
 
     @classmethod
-    async def insert_threat_log(cls, log_data: dict) -> str:
-        """Insert a threat log entry."""
-        log_data["timestamp"] = datetime.utcnow()
-        result = await cls.db.threat_logs.insert_one(log_data)
-        return str(result.inserted_id)
+    async def get_user(cls, username: str) -> Optional[dict]:
+        async with cls.async_session() as session:
+            result = await session.execute(select(User).where(User.username == username))
+            user = result.scalars().first()
+            if user:
+                return {"username": user.username, "password": user.password, "role": user.role}
+            return None
 
     @classmethod
-    async def insert_agent_event(cls, event_data: dict) -> str:
-        """Insert an agent event."""
-        event_data["timestamp"] = datetime.utcnow()
-        result = await cls.db.agent_events.insert_one(event_data)
-        return str(result.inserted_id)
-
-    @classmethod
-    async def insert_action(cls, action_data: dict) -> str:
-        """Insert an action history entry."""
-        action_data["timestamp"] = datetime.utcnow()
-        result = await cls.db.action_history.insert_one(action_data)
-        return str(result.inserted_id)
-
-    @classmethod
-    async def get_recent_threats(cls, limit: int = 50) -> list:
-        """Get recent threat logs."""
-        cursor = cls.db.threat_logs.find().sort("timestamp", -1).limit(limit)
-        results = []
-        async for doc in cursor:
-            doc["_id"] = str(doc["_id"])
-            results.append(doc)
-        return results
-
-    @classmethod
-    async def get_recent_events(cls, limit: int = 50) -> list:
-        """Get recent agent events."""
-        cursor = cls.db.agent_events.find().sort("timestamp", -1).limit(limit)
-        results = []
-        async for doc in cursor:
-            doc["_id"] = str(doc["_id"])
-            results.append(doc)
-        return results
-
-    @classmethod
-    async def get_action_history(cls, limit: int = 50) -> list:
-        """Get recent action history."""
-        cursor = cls.db.action_history.find().sort("timestamp", -1).limit(limit)
-        results = []
-        async for doc in cursor:
-            doc["_id"] = str(doc["_id"])
-            results.append(doc)
-        return results
-
-    @classmethod
-    async def get_threat_stats(cls) -> dict:
-        """Get aggregated threat statistics."""
-        pipeline = [
-            {
-                "$group": {
-                    "_id": "$severity",
-                    "count": {"$sum": 1},
-                }
-            }
-        ]
-        stats = {}
-        async for doc in cls.db.threat_logs.aggregate(pipeline):
-            stats[doc["_id"]] = doc["count"]
-        return stats
-
-    @classmethod
-    async def get_attack_type_stats(cls) -> list:
-        """Get attack type distribution."""
-        pipeline = [
-            {"$group": {"_id": "$threat_type", "count": {"$sum": 1}}},
-            {"$sort": {"count": -1}},
-            {"$limit": 10},
-        ]
-        results = []
-        async for doc in cls.db.threat_logs.aggregate(pipeline):
-            results.append({"type": doc["_id"], "count": doc["count"]})
-        return results
-
-    @classmethod
-    async def get_threat_timeline(cls, hours: int = 24) -> list:
-        """Get threat frequency over time."""
-        pipeline = [
-            {
-                "$match": {
-                    "timestamp": {
-                        "$gte": datetime.utcnow().replace(
-                            hour=datetime.utcnow().hour - min(hours, datetime.utcnow().hour)
-                        )
-                    }
-                }
-            },
-            {
-                "$group": {
-                    "_id": {
-                        "$dateToString": {
-                            "format": "%Y-%m-%d %H:00",
-                            "date": "$timestamp",
-                        }
-                    },
-                    "count": {"$sum": 1},
-                }
-            },
-            {"$sort": {"_id": 1}},
-        ]
-        results = []
-        async for doc in cls.db.threat_logs.aggregate(pipeline):
-            results.append({"time": doc["_id"], "threats": doc["count"]})
-        return results
-
-    @classmethod
-    async def insert_system_metric(cls, metric_data: dict) -> str:
-        """Insert a system metric entry."""
-        metric_data["timestamp"] = datetime.utcnow()
-        result = await cls.db.system_metrics.insert_one(metric_data)
-        return str(result.inserted_id)
-
-
-# ─── In-Memory Fallback Store ─────────────────────────────────────────────────
-# Used when MongoDB/PostgreSQL are not available (development mode)
-
-class InMemoryStore:
-    """In-memory data store for development without databases."""
-
-    _threats: list = []
-    _events: list = []
-    _actions: list = []
-    _metrics: list = []
-    _users: dict = {}
-    _counter: int = 0
-
-    @classmethod
-    def _next_id(cls) -> str:
-        cls._counter += 1
-        return f"mem_{cls._counter}"
+    async def create_user(cls, username: str, password_hash: str, role: str) -> bool:
+        async with cls.async_session() as session:
+            result = await session.execute(select(User).where(User.username == username))
+            if result.scalars().first():
+                return False
+            session.add(User(username=username, password=password_hash, role=role))
+            await session.commit()
+            return True
 
     @classmethod
     async def insert_threat_log(cls, log_data: dict) -> str:
         log_data["timestamp"] = datetime.utcnow().isoformat()
-        log_data["_id"] = cls._next_id()
-        cls._threats.insert(0, log_data)
-        cls._threats = cls._threats[:500]  # Keep last 500
-        return log_data["_id"]
+        async with cls.async_session() as session:
+            log = ThreatLog(
+                timestamp=datetime.utcnow(),
+                threat_type=log_data.get("threat_type", "unknown"),
+                severity=log_data.get("severity", "unknown"),
+                data_json=json.dumps(log_data)
+            )
+            session.add(log)
+            await session.commit()
+            return str(log.id)
 
     @classmethod
     async def insert_agent_event(cls, event_data: dict) -> str:
         event_data["timestamp"] = datetime.utcnow().isoformat()
-        event_data["_id"] = cls._next_id()
-        cls._events.insert(0, event_data)
-        cls._events = cls._events[:500]
-        return event_data["_id"]
+        async with cls.async_session() as session:
+            evt = AgentEvent(
+                timestamp=datetime.utcnow(),
+                agent_name=event_data.get("agent_name", "unknown"),
+                data_json=json.dumps(event_data)
+            )
+            session.add(evt)
+            await session.commit()
+            return str(evt.id)
 
     @classmethod
     async def insert_action(cls, action_data: dict) -> str:
         action_data["timestamp"] = datetime.utcnow().isoformat()
-        action_data["_id"] = cls._next_id()
-        cls._actions.insert(0, action_data)
-        cls._actions = cls._actions[:500]
-        return action_data["_id"]
+        async with cls.async_session() as session:
+            act = ActionHistory(
+                timestamp=datetime.utcnow(),
+                data_json=json.dumps(action_data)
+            )
+            session.add(act)
+            await session.commit()
+            return str(act.id)
 
     @classmethod
     async def get_recent_threats(cls, limit: int = 50) -> list:
-        return cls._threats[:limit]
+        async with cls.async_session() as session:
+            result = await session.execute(select(ThreatLog).order_by(desc(ThreatLog.timestamp)).limit(limit))
+            return [json.loads(row.data_json) for row in result.scalars()]
 
     @classmethod
     async def get_recent_events(cls, limit: int = 50) -> list:
-        return cls._events[:limit]
+        async with cls.async_session() as session:
+            result = await session.execute(select(AgentEvent).order_by(desc(AgentEvent.timestamp)).limit(limit))
+            return [json.loads(row.data_json) for row in result.scalars()]
 
     @classmethod
     async def get_action_history(cls, limit: int = 50) -> list:
-        return cls._actions[:limit]
+        async with cls.async_session() as session:
+            result = await session.execute(select(ActionHistory).order_by(desc(ActionHistory.timestamp)).limit(limit))
+            return [json.loads(row.data_json) for row in result.scalars()]
 
     @classmethod
     async def get_threat_stats(cls) -> dict:
         stats = {}
-        for t in cls._threats:
-            sev = t.get("severity", "unknown")
-            stats[sev] = stats.get(sev, 0) + 1
+        async with cls.async_session() as session:
+            result = await session.execute(select(ThreatLog.severity, func.count(ThreatLog.id)).group_by(ThreatLog.severity))
+            for row in result:
+                stats[row[0]] = row[1]
         return stats
 
     @classmethod
     async def get_attack_type_stats(cls) -> list:
-        type_counts = {}
-        for t in cls._threats:
-            tt = t.get("threat_type", "unknown")
-            type_counts[tt] = type_counts.get(tt, 0) + 1
-        sorted_types = sorted(type_counts.items(), key=lambda x: x[1], reverse=True)
-        return [{"type": k, "count": v} for k, v in sorted_types[:10]]
+        async with cls.async_session() as session:
+            result = await session.execute(
+                select(ThreatLog.threat_type, func.count(ThreatLog.id))
+                .group_by(ThreatLog.threat_type)
+                .order_by(desc(func.count(ThreatLog.id)))
+                .limit(10)
+            )
+            return [{"type": row[0], "count": row[1]} for row in result]
 
     @classmethod
     async def get_threat_timeline(cls, hours: int = 24) -> list:
         from collections import defaultdict
         timeline = defaultdict(int)
-        for t in cls._threats:
-            ts = t.get("timestamp", "")
-            if isinstance(ts, str) and len(ts) >= 13:
-                hour_key = ts[:13] + ":00"
+        time_limit = datetime.utcnow() - timedelta(hours=hours)
+        async with cls.async_session() as session:
+            result = await session.execute(select(ThreatLog.timestamp).where(ThreatLog.timestamp >= time_limit))
+            for row in result.scalars():
+                hour_key = row.strftime("%Y-%m-%d %H:00")
                 timeline[hour_key] += 1
         sorted_tl = sorted(timeline.items())
         return [{"time": k, "threats": v} for k, v in sorted_tl[-hours:]]
@@ -247,36 +196,27 @@ class InMemoryStore:
     @classmethod
     async def insert_system_metric(cls, metric_data: dict) -> str:
         metric_data["timestamp"] = datetime.utcnow().isoformat()
-        metric_data["_id"] = cls._next_id()
-        cls._metrics.insert(0, metric_data)
-        cls._metrics = cls._metrics[:200]
-        return metric_data["_id"]
-
-
-# ─── Database Selector ────────────────────────────────────────────────────────
+        async with cls.async_session() as session:
+            metric = SystemMetric(
+                timestamp=datetime.utcnow(),
+                data_json=json.dumps(metric_data)
+            )
+            session.add(metric)
+            await session.commit()
+            return str(metric.id)
 
 _db_instance = None
 
-
 async def get_db():
-    """Get the active database instance. Falls back to in-memory if MongoDB unavailable."""
     global _db_instance
     if _db_instance is not None:
         return _db_instance
-
-    try:
-        await MongoDB.connect()
-        _db_instance = MongoDB
-        return _db_instance
-    except Exception as e:
-        print(f"[DB] MongoDB unavailable ({e}), using in-memory store")
-        _db_instance = InMemoryStore
-        return _db_instance
-
+    await Database.connect()
+    _db_instance = Database
+    return _db_instance
 
 async def close_db():
-    """Close database connections."""
     global _db_instance
-    if _db_instance is MongoDB:
-        await MongoDB.disconnect()
+    if _db_instance:
+        await _db_instance.disconnect()
     _db_instance = None

@@ -55,6 +55,7 @@ class AnomalyDetector:
         self.scaler: Optional[object] = None
         self.is_trained = False
         self._feature_history: list[list[float]] = []
+        self._suspicious_history: list[list[float]] = []
         self._samples_since_retrain = 0
         self._train_count = 0
 
@@ -80,17 +81,6 @@ class AnomalyDetector:
                 "train_iterations": int
             }
         """
-        # Store for online retraining
-        self._feature_history.append(features)
-        if len(self._feature_history) > self.MAX_HISTORY:
-            self._feature_history = self._feature_history[-self.MAX_HISTORY:]
-        self._samples_since_retrain += 1
-
-        # Auto-retrain periodically
-        if (self._samples_since_retrain >= self.RETRAIN_INTERVAL
-                and len(self._feature_history) >= 100):
-            self._retrain()
-
         if not self.is_trained or not self.model:
             return {
                 "anomaly_score": 0.0,
@@ -129,6 +119,22 @@ class AnomalyDetector:
         else:
             confidence = min(anomaly_score + 0.1, 0.99)
 
+        # Protect training history (Poison-resistant update)
+        if classification == "normal":
+            self._feature_history.append(features)
+            if len(self._feature_history) > self.MAX_HISTORY:
+                self._feature_history = self._feature_history[-self.MAX_HISTORY:]
+            self._samples_since_retrain += 1
+        else:
+            self._suspicious_history.append(features)
+            if len(self._suspicious_history) > self.MAX_HISTORY:
+                self._suspicious_history = self._suspicious_history[-self.MAX_HISTORY:]
+
+        # Auto-retrain periodically
+        if (self._samples_since_retrain >= self.RETRAIN_INTERVAL
+                and len(self._feature_history) >= 100):
+            self._retrain()
+
         return {
             "anomaly_score": round(anomaly_score, 4),
             "classification": classification,
@@ -146,6 +152,7 @@ class AnomalyDetector:
             "is_trained": self.is_trained,
             "train_iterations": self._train_count,
             "samples_in_history": len(self._feature_history),
+            "samples_in_suspicious": len(self._suspicious_history),
             "samples_since_retrain": self._samples_since_retrain,
             "thresholds": {
                 "high_threat": self.THRESHOLD_HIGH,

@@ -40,7 +40,7 @@ class ResponseAgent(BaseAgent):
             actions_taken.append(result)
 
         if "alert_admin" in recommended:
-            result = self._send_alert(threat)
+            result = await self._send_alert(threat)
             actions_taken.append(result)
 
         if "sanitize_input" in recommended:
@@ -100,12 +100,32 @@ class ResponseAgent(BaseAgent):
         return ActionResult(action_type="rate_limit", success=True, target=ip,
                             description=f"Rate limiting applied to {ip}")
 
-    def _send_alert(self, threat: dict) -> ActionResult:
+    async def _send_alert(self, threat: dict) -> ActionResult:
         alert = {"timestamp": datetime.utcnow().isoformat(), "severity": threat.get("severity"),
                  "threat_type": threat.get("threat_type"), "description": threat.get("description", ""),
                  "source_ip": threat.get("source_ip")}
         self.alerts.append(alert)
         self.alerts = self.alerts[-100:]
+
+        # SOC Notification for CRITICAL/HIGH threats
+        severity = threat.get("severity", "none").lower()
+        if severity in ("critical", "high"):
+            import os
+            webhook_url = os.getenv("SOC_WEBHOOK_URL", "")
+            if webhook_url:
+                import httpx
+                import asyncio
+                payload = {
+                    "text": f"🚨 *{severity.upper()} Threat Detected* 🚨\nType: {alert['threat_type']}\nIP: {alert['source_ip']}\nDesc: {alert['description']}"
+                }
+                async def post_webhook():
+                    try:
+                        async with httpx.AsyncClient(timeout=3.0) as client:
+                            await client.post(webhook_url, json=payload)
+                    except Exception as e:
+                        print(f"Failed to send SOC webhook: {e}")
+                asyncio.create_task(post_webhook())
+
         return ActionResult(action_type="alert_admin", success=True, target="admin",
                             description=f"Alert sent: {threat.get('threat_type')} ({threat.get('severity')})")
 
