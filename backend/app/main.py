@@ -11,9 +11,12 @@ from app.routes.core import router as core_router
 from app.orchestrator import orchestrator
 
 
+from app.database import Database
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup: begin monitor heartbeat
+    # Startup: connect DB and begin monitor heartbeat
+    await Database.connect()
     task = asyncio.create_task(orchestrator.monitor.start_heartbeat(5.0))
     print(f"[CyberSentric] v{settings.APP_VERSION} started")
     print(f"[CyberSentric] Agents: Defender, Analyzer, Response, Monitor, RedTeam")
@@ -21,6 +24,7 @@ async def lifespan(app: FastAPI):
     # Shutdown
     orchestrator.monitor.stop_heartbeat()
     task.cancel()
+    await Database.disconnect()
     print("[CyberSentric] Shutdown complete")
 
 

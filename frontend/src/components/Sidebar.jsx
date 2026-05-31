@@ -1,8 +1,10 @@
 import { useState } from 'react';
-import { Shield, Activity, AlertTriangle, Settings, BarChart3, Swords, MonitorDot, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Shield, Activity, AlertTriangle, Settings, BarChart3, Swords, MonitorDot, ChevronLeft, ChevronRight, Globe, Microscope } from 'lucide-react';
 
 const NAV_ITEMS = [
   { id: 'dashboard', label: 'Dashboard', icon: BarChart3 },
+  { id: 'monitoring', label: 'Global Monitor', icon: Globe },
+  { id: 'lab', label: 'Investigation Lab', icon: Microscope },
   { id: 'agents', label: 'Agents', icon: Activity },
   { id: 'threats', label: 'Threats', icon: AlertTriangle },
   { id: 'redteam', label: 'Red Team', icon: Swords },

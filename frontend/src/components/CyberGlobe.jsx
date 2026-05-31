@@ -1,5 +1,7 @@
 import { useEffect, useState, useRef } from 'react';
 import Globe from 'react-globe.gl';
+import { api } from '../services/api';
+
 
 export default function CyberGlobe({ attacks = [] }) {
   const globeEl = useRef();
@@ -7,24 +9,78 @@ export default function CyberGlobe({ attacks = [] }) {
   const [pointsData, setPointsData] = useState([]);
 
   useEffect(() => {
-    // Generate some cool default animation data if no live attacks
-    const defaultPoints = [
-      { lat: 37.7749, lng: -122.4194, size: 0.14, color: '#ef4444', label: 'San Francisco' },
-      { lat: 51.5074, lng: -0.1278, size: 0.12, color: '#3b82f6', label: 'London' },
-      { lat: 35.6895, lng: 139.6917, size: 0.12, color: '#00f0ff', label: 'Tokyo' },
-      { lat: 55.7558, lng: 37.6173, size: 0.12, color: '#a855f7', label: 'Moscow' },
-    ];
+    let mounted = true;
 
-    const defaultArcs = [
-      { startLat: 55.7558, startLng: 37.6173, endLat: 37.7749, endLng: -122.4194, color: '#ef4444' },
-      { startLat: 35.6895, startLng: 139.6917, endLat: 51.5074, endLng: -0.1278, color: '#00f0ff' },
-    ];
+    // Simple hash to generate consistent lat/lng from IP string
+    const ipToLocation = (ip) => {
+      let hash = 0;
+      for (let i = 0; i < ip.length; i++) {
+        hash = ip.charCodeAt(i) + ((hash << 5) - hash);
+      }
+      const lat = (hash % 160) - 80; // -80 to 80
+      const lng = ((hash >> 8) % 360) - 180; // -180 to 180
+      return { lat, lng };
+    };
 
-    setPointsData(defaultPoints);
-    setArcsData(defaultArcs);
-  }, []);
+    const fetchThreats = async () => {
+      try {
+        const data = await api.getThreats();
+        if (!mounted) return;
+        
+        const recentAlerts = data.recent_alerts || [];
+        const blockedIps = data.blocked_ips || [];
+        
+        const points = [];
+        const arcs = [];
+        
+        // Define a central "server" location (e.g., Data Center)
+        const serverLoc = { lat: 37.7749, lng: -122.4194 }; // San Francisco
 
-  useEffect(() => {
+        recentAlerts.forEach((alert, i) => {
+          const ip = alert.source_ip || `unknown-${i}`;
+          const loc = ipToLocation(ip);
+          
+          points.push({
+            lat: loc.lat,
+            lng: loc.lng,
+            size: 0.15,
+            color: alert.severity === 'high' ? '#ef4444' : '#f59e0b',
+            label: `Threat: ${ip} (${alert.threat_type})`
+          });
+          
+          arcs.push({
+            startLat: loc.lat,
+            startLng: loc.lng,
+            endLat: serverLoc.lat,
+            endLng: serverLoc.lng,
+            color: alert.severity === 'high' ? ['#ef4444', '#ef444400'] : ['#f59e0b', '#f59e0b00']
+          });
+        });
+
+        // Ensure we always have some activity to keep the globe interesting
+        if (points.length === 0) {
+          const defaultPoints = [
+            { lat: 37.7749, lng: -122.4194, size: 0.14, color: '#ef4444', label: 'San Francisco Server' },
+            { lat: 51.5074, lng: -0.1278, size: 0.12, color: '#3b82f6', label: 'London Node' },
+            { lat: 35.6895, lng: 139.6917, size: 0.12, color: '#00f0ff', label: 'Tokyo Node' },
+          ];
+          setPointsData(defaultPoints);
+          setArcsData([
+            { startLat: 51.5074, startLng: -0.1278, endLat: 37.7749, endLng: -122.4194, color: ['#3b82f6', '#ef4444'] },
+            { startLat: 35.6895, startLng: 139.6917, endLat: 37.7749, endLng: -122.4194, color: ['#00f0ff', '#ef4444'] }
+          ]);
+        } else {
+          setPointsData([...points, { ...serverLoc, size: 0.2, color: '#3b82f6', label: 'Main Server' }]);
+          setArcsData(arcs);
+        }
+      } catch (err) {
+        console.error("Globe data fetch error:", err);
+      }
+    };
+
+    fetchThreats();
+    const interval = setInterval(fetchThreats, 5000);
+
     const timeout = setTimeout(() => {
       if (globeEl.current?.controls) {
         const controls = globeEl.current.controls();
@@ -38,7 +94,11 @@ export default function CyberGlobe({ attacks = [] }) {
       }
     }, 100);
 
-    return () => clearTimeout(timeout);
+    return () => {
+      mounted = false;
+      clearInterval(interval);
+      clearTimeout(timeout);
+    };
   }, []);
 
   return (

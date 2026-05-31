@@ -55,35 +55,43 @@ export default function Topbar({ connected, user, stats, messages = [], onLogout
           </button>
           
           {showNotifications && (
-            <div className="absolute right-0 mt-3 w-80 rounded-xl glass border border-white/10 shadow-2xl overflow-hidden animate-fade-in z-50">
-              <div className="px-4 py-3 border-b border-white/10 flex justify-between items-center bg-white/5">
-                <h3 className="text-sm font-bold text-slate-200">Notifications</h3>
-                {unreadCount > 0 && <span className="text-[10px] bg-red-500/20 text-red-400 px-2 py-0.5 rounded-full">{unreadCount} New</span>}
+            <div className="absolute right-0 mt-3 w-80 rounded-2xl bg-[#0a1526]/95 backdrop-blur-xl border border-[#00ffff]/20 shadow-[0_10px_40px_rgba(0,255,255,0.15)] overflow-hidden animate-fade-in z-50">
+              <div className="px-5 py-4 border-b border-[#00ffff]/10 flex justify-between items-center bg-gradient-to-r from-[#00ffff]/10 to-transparent">
+                <div className="flex items-center gap-2">
+                  <Bell className="w-4 h-4 text-[#00ffff]" />
+                  <h3 className="text-sm font-black text-white tracking-wide">NOTIFICATIONS</h3>
+                </div>
+                {unreadCount > 0 && <span className="text-[10px] bg-[#00ffff]/20 text-[#00ffff] px-2.5 py-0.5 rounded-full font-bold">{unreadCount} NEW</span>}
               </div>
-              <div className="max-h-[300px] overflow-y-auto scrollbar-hide">
+              <div className="max-h-[320px] overflow-y-auto scrollbar-hide">
                 {messages.length === 0 ? (
-                  <div className="px-4 py-8 flex flex-col items-center justify-center text-slate-500">
-                    <CheckCircle2 className="w-8 h-8 mb-2 text-emerald-500/30" />
-                    <p className="text-sm">You're all caught up!</p>
+                  <div className="px-4 py-10 flex flex-col items-center justify-center text-slate-500">
+                    <div className="w-12 h-12 rounded-full bg-[#00ffff]/5 flex items-center justify-center mb-3">
+                      <CheckCircle2 className="w-6 h-6 text-[#00ffff]/50" />
+                    </div>
+                    <p className="text-sm font-medium text-slate-400">System is fully secure.</p>
+                    <p className="text-[10px] text-slate-600 mt-1">No recent alerts</p>
                   </div>
                 ) : (
                   messages.slice(0, 10).map((msg, i) => (
-                    <div key={i} className="px-4 py-3 border-b border-white/5 hover:bg-white/5 transition-colors flex gap-3 cursor-pointer group">
-                      <div className={`w-2 h-2 mt-1.5 rounded-full flex-shrink-0 ${msg.data?.severity === 'high' ? 'bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.5)]' : msg.data?.severity === 'medium' ? 'bg-orange-500 shadow-[0_0_8px_rgba(249,115,22,0.5)]' : 'bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.5)]'}`} />
+                    <div key={i} className="px-5 py-3 border-b border-[#00ffff]/5 hover:bg-[#00ffff]/5 transition-colors flex gap-3 cursor-pointer group">
+                      <div className={`w-2.5 h-2.5 mt-1 rounded-full flex-shrink-0 ${msg.data?.severity === 'high' ? 'bg-red-500 shadow-[0_0_10px_#ef4444]' : msg.data?.severity === 'medium' ? 'bg-orange-500 shadow-[0_0_10px_#f97316]' : 'bg-[#00ffff] shadow-[0_0_10px_#00ffff]'}`} />
                       <div className="flex-1 overflow-hidden">
                         <div className="flex justify-between items-start">
-                          <p className="text-sm text-slate-200 font-medium group-hover:text-cyan-400 transition-colors">{msg.type === 'THREAT_DETECTED' ? 'Threat Detected' : msg.data?.event_type || 'System Event'}</p>
-                          <p className="text-[10px] text-slate-500 flex-shrink-0 ml-2">{new Date(msg.timestamp || Date.now()).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</p>
+                          <p className={`text-sm font-bold transition-colors ${msg.data?.severity === 'high' ? 'text-red-400' : 'text-slate-200 group-hover:text-[#00ffff]'}`}>
+                            {msg.type === 'THREAT_DETECTED' ? 'Threat Detected' : msg.data?.event_type || 'System Event'}
+                          </p>
+                          <p className="text-[10px] text-slate-500 flex-shrink-0 ml-2 font-mono">{new Date(msg.timestamp || Date.now()).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</p>
                         </div>
-                        <p className="text-xs text-slate-400 mt-1 truncate">{msg.data?.details || msg.data?.description || JSON.stringify(msg.data)}</p>
+                        <p className="text-xs text-slate-400 mt-1 leading-relaxed line-clamp-2">{msg.data?.details || msg.data?.description || JSON.stringify(msg.data)}</p>
                       </div>
                     </div>
                   ))
                 )}
               </div>
-              <div className="p-2 bg-black/20 border-t border-white/10">
-                <button className="w-full py-1.5 text-xs font-medium text-cyan-400 hover:text-cyan-300 hover:bg-cyan-500/10 rounded-lg transition-colors">
-                  View All Activity
+              <div className="p-3 bg-black/40 border-t border-[#00ffff]/10">
+                <button className="w-full py-2 text-xs font-bold text-[#00ffff] hover:text-white hover:bg-[#00ffff]/20 rounded-lg transition-all tracking-wider uppercase">
+                  View Security Logs
                 </button>
               </div>
             </div>

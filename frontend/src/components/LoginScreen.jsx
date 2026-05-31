@@ -113,7 +113,7 @@ export default function LoginScreen({ onLogin }) {
               </p>
             </div>
 
-            <form onSubmit={handleSubmit} className="space-y-4">
+            <form onSubmit={handleSubmit} className="space-y-4" autoComplete="off">
               {!isLogin && (
                 <>
                   <div>
@@ -123,6 +123,7 @@ export default function LoginScreen({ onLogin }) {
                       value={fullName} 
                       onChange={e => setFullName(e.target.value)}
                       placeholder="John Doe" 
+                      autoComplete="off"
                       className="w-full border border-gray-200 bg-gray-50/50 rounded-lg px-4 py-3 text-[15px] text-slate-800 placeholder-gray-400 focus:bg-white focus:outline-none focus:border-[#FFA116] focus:ring-2 focus:ring-[#FFA116]/20 transition-all" 
                     />
                   </div>
@@ -133,6 +134,7 @@ export default function LoginScreen({ onLogin }) {
                       value={organization} 
                       onChange={e => setOrganization(e.target.value)}
                       placeholder="Company Inc." 
+                      autoComplete="off"
                       className="w-full border border-gray-200 bg-gray-50/50 rounded-lg px-4 py-3 text-[15px] text-slate-800 placeholder-gray-400 focus:bg-white focus:outline-none focus:border-[#FFA116] focus:ring-2 focus:ring-[#FFA116]/20 transition-all" 
                     />
                   </div>
@@ -146,6 +148,7 @@ export default function LoginScreen({ onLogin }) {
                   value={identifier} 
                   onChange={e => setIdentifier(e.target.value)}
                   placeholder="name@company.com / 98765... / username" 
+                  autoComplete="off"
                   className="w-full border border-gray-200 bg-gray-50/50 rounded-lg px-4 py-3 text-[15px] text-slate-800 placeholder-gray-400 focus:bg-white focus:outline-none focus:border-[#FFA116] focus:ring-2 focus:ring-[#FFA116]/20 transition-all" 
                 />
               </div>
@@ -160,6 +163,7 @@ export default function LoginScreen({ onLogin }) {
                   value={password} 
                   onChange={e => setPassword(e.target.value)}
                   placeholder="••••••••" 
+                  autoComplete="new-password"
                   className="w-full border border-gray-200 bg-gray-50/50 rounded-lg px-4 py-3 text-[15px] text-slate-800 placeholder-gray-400 focus:bg-white focus:outline-none focus:border-[#FFA116] focus:ring-2 focus:ring-[#FFA116]/20 transition-all" 
                 />
               </div>

@@ -11,6 +11,8 @@ import RedTeamPanel from './components/RedTeamPanel';
 import LoginScreen from './components/LoginScreen';
 import CyberGlobe from './components/CyberGlobe';
 import CyberChatbot from './components/CyberChatbot';
+import GlobalMonitor from './components/GlobalMonitor';
+import InvestigationLab from './components/InvestigationLab';
 import { useWebSocket } from './hooks/useWebSocket';
 import { api } from './services/api';
 import { Shield, Activity, AlertTriangle, Zap } from 'lucide-react';
@@ -138,6 +140,20 @@ export default function App() {
 
               {/* Action History */}
               <ActionHistory actions={actionHistory} />
+            </div>
+          )}
+
+          {/* ─── GLOBAL MONITOR ─── */}
+          {activeTab === 'monitoring' && (
+            <div className="animate-fade-in">
+              <GlobalMonitor />
+            </div>
+          )}
+
+          {/* ─── INVESTIGATION LAB ─── */}
+          {activeTab === 'lab' && (
+            <div className="animate-fade-in">
+              <InvestigationLab />
             </div>
           )}
 
